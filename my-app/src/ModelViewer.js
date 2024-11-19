@@ -30,16 +30,26 @@ function ModelViewer() {
         .setZ(boundingBox.min.z);
     }
   }, []);
+
   const handleTransformChange = useCallback(() => {
     const mesh = meshRef.current;
     if (mesh) {
       updateBoundingBox();
-        
+      
       const boundingBoxHelper = boundingBoxHelperRef.current;
       if (boundingBoxHelper) {
-        if (boundingBoxHelper.box.min.y < 0) {
-          mesh.position.y = mesh.position.y * 1.04;
+        const boundingBoxMinY = boundingBoxHelper.box.min.y;
+
+        if (boundingBoxMinY < 0) {
+          mesh.position.y -= boundingBoxMinY;
         }
+
+        const boundingBoxMinX = boundingBoxHelper.box.min.x;
+
+        if (boundingBoxMinX < -100) {
+          mesh.position.x -= boundingBoxMinX;
+        }
+
 
         const tableSize = 200;
         const boundingBoxSize = new THREE.Vector3();
@@ -64,8 +74,7 @@ function ModelViewer() {
 
         if (transformControlsRef.current.getMode() === "scale") {
           const minScale = 0.1;
-          // Увеличиваем максимальный масштаб
-          const maxScale = 10; // Ранее было ограничение maxSize / boundingBoxSize.x, убираем его
+          const maxScale = 10;
 
           mesh.scale.set(
             THREE.MathUtils.clamp(mesh.scale.x, minScale, maxScale),
@@ -128,6 +137,21 @@ function ModelViewer() {
 
     reader.readAsArrayBuffer(file);
   };
+
+  const lowerModelToGround = useCallback(() => {
+    const mesh = meshRef.current;
+    const boundingBoxHelper = boundingBoxHelperRef.current;
+  
+    if (mesh && boundingBoxHelper) {
+      const boundingBoxMinY = boundingBoxHelper.box.min.y;
+  
+      if (boundingBoxMinY > 0) {
+        // Поднимаем объект так, чтобы нижняя грань касалась пола
+        mesh.position.y -= boundingBoxMinY;
+        updateBoundingBox();
+      }
+    }
+  }, [updateBoundingBox]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -213,13 +237,7 @@ function ModelViewer() {
 
     window.addEventListener("keydown", handleKeyDown);
 
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    const animate = () => {
+    const animate = function () {
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
@@ -228,36 +246,42 @@ function ModelViewer() {
     animate();
 
     return () => {
-      mount.removeChild(renderer.domElement);
-      if (transformControlsRef.current) {
-        scene.remove(transformControlsRef.current);
-      }
       window.removeEventListener("keydown", handleKeyDown);
+      mount.removeChild(renderer.domElement);
     };
-  }, [handleTransformChange, resetTransforms, updateBoundingBox]);
+  }, [handleTransformChange, resetTransforms]);
 
   return (
-    <div>
+    <>
+      <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />
       <input
         type="file"
         accept=".stl"
-        onChange={(e) => {
-          const file = e.target.files[0];
-          if (file) loadModel(file);
-        }}
+        onChange={(e) => loadModel(e.target.files[0])}
         style={{
           position: "absolute",
           left: "50%",
           transform: "translateX(-50%)",
           bottom: "20px",
+        }}
+      />
+      <button
+        onClick={() => lowerModelToGround()}
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          bottom: "60px",
           padding: "10px",
-          backgroundColor: "#f0f0f0",
+          backgroundColor: "#4CAF50",
+          color: "white",
           borderRadius: "5px",
           cursor: "pointer"
         }}
-      />
-      <div ref={mountRef} style={{ width: "100%", height: "100vh" }} />
-    </div>
+      >
+        Опустить до пола
+      </button>
+    </>
   );
 }
 
